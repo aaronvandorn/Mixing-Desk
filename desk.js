@@ -36,6 +36,7 @@ const CATALOG = [
   { name: 'Boolean Melody Machine', short: 'Melody Machine', url: 'https://aaronvandorn.github.io/Boolean-Melody-Machine/', about: 'generative melodies' },
   { name: 'Choir', url: 'https://aaronvandorn.github.io/Choir/', about: 'generative choral synth' },
   { name: 'Pocket Mouse', url: 'https://aaronvandorn.github.io/Pocket-Mouse/', about: 'Music Mouse-style instrument' },
+  { name: 'Pocket Grains', url: 'https://aaronvandorn.github.io/Pocket-Grains/', about: 'granular instrument' },
   { name: 'Tape Loop Deck', url: 'https://aaronvandorn.github.io/Tape-Loop-Deck/', about: 'tape loops' },
 ];
 

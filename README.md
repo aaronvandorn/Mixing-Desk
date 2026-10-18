@@ -4,7 +4,7 @@ A performance mixing console for the music apps, running entirely in the browser
 
 Live at **https://aaronvandorn.github.io/Mixing-Desk/** (once GitHub Pages is switched on for this repo).
 
-- **Channels:** add Logic Rhythm, Boolean Melody Machine, Choir, Pocket Mouse or Tape Loop Deck from the list, or paste the address of any other app. Audio files (looped on the bar grid) and live audio inputs can be channels too.
+- **Channels:** add Logic Rhythm, Boolean Melody Machine, Choir, Pocket Mouse, Pocket Grains or Tape Loop Deck from the list, or paste the address of any other app. Audio files (looped on the bar grid) and live audio inputs can be channels too.
 - **Channel strip:** gain, low cut, 3-band EQ with sweepable mid, and an effects bus with a DJ-style filter (low-pass one way, high-pass the other), drive, a tempo-synced echo with feedback, and a reverb send. Then pan, a volume fader, mute and solo.
 - **Reverb return:** one shared reverb with size, tone and its own fader, fed by every strip's Verb send.
 - **Master:** bus limiter with a gain-reduction readout, master fader, and a safety ceiling at 0 dBFS.
@@ -21,7 +21,7 @@ Nothing is uploaded; all audio stays in your browser.
 
 ## How apps connect
 
-The desk speaks the same guest protocol as [Discobot](https://iw978599.github.io/discobot/)'s rack ([GUEST_PROTOCOL.md](https://github.com/iw978599/discobot/blob/main/docs/GUEST_PROTOCOL.md), version 1). Logic Rhythm, Boolean Melody Machine, Choir, Pocket Mouse and Tape Loop Deck already implement it, so they plug in with no changes:
+The desk speaks the same guest protocol as [Discobot](https://iw978599.github.io/discobot/)'s rack ([GUEST_PROTOCOL.md](https://github.com/iw978599/discobot/blob/main/docs/GUEST_PROTOCOL.md), version 1). Logic Rhythm, Boolean Melody Machine, Choir, Pocket Mouse, Pocket Grains and Tape Loop Deck already implement it, so they plug in with no changes:
 
 1. The app loads in a frame and says it is `ready`. The desk answers `hello` with how early to play (`latencyMs`, 120 ms to start with).
 2. The desk sends `transport` messages: start on a given beat at a given wall-clock time, tempo changes, stop. Each app schedules its own notes on those beats.
