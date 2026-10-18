@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Mixing Desk</title>
+<meta name="description" content="A performance mixing console for the music apps: hosts each app as a channel, with EQ, effects, meters, a shared transport and a mixdown recorder.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=Barlow+Condensed:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
+<style>
+/* Same design language as Tape Loop Deck: dark "studio hardware" console by default, plus the
+   Logic-Rhythm light colorway, switched with the Light/Dark button. */
+:root{
+  --bg:#161814;--panel:#21241e;--panel-2:#2a2e26;--well:#10120e;--line:#3a3f34;--ink:#ece5d3;--muted:#9c9d89;
+  --oxide:#a8562f;--oxide-hi:#dc8a50;--amber:#f2b648;--teal:#80c7b5;--alert:#e5553f;--on-accent:#ece5d3;
+  --warn:#f2b648;--scrim:rgba(0,0,0,.62);--cap-a:#ece5d3;--cap-b:#9c9d89;--cap-line:#161814;--shadow:rgba(0,0,0,.5);
+  --rec:#e5553f;
+  --display:'Big Shoulders Display','Arial Narrow',Impact,sans-serif;
+  --ui:'Barlow Condensed','Arial Narrow','Roboto Condensed',sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,'SFMono-Regular',Menlo,monospace;
+  color-scheme:dark;
+}
+:root[data-theme="light"]{--bg:#eef2f6;--panel:#ffffff;--panel-2:#e7edf3;--well:#dde3ea;--line:#c4ccd6;--ink:#1f2733;--muted:#64707f;--oxide:#3b76b3;--oxide-hi:#2f69a6;--amber:#3b76b3;--teal:#157f78;--alert:#c0392b;--on-accent:#ffffff;--warn:#c58a1c;--scrim:rgba(30,41,59,.35);--cap-a:#ffffff;--cap-b:#cfd7e0;--cap-line:#64707f;--shadow:rgba(30,41,59,.18);--rec:#c0392b;color-scheme:light}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);font-size:15px;line-height:1.35}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.num,.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* ---------- top bar */
+.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top,0px)}
+.top-in{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding:10px 16px;max-width:1600px;margin:0 auto}
+.brand{display:flex;align-items:center;gap:10px;margin-right:auto}
+.brand h1{font-family:var(--display);font-weight:800;font-size:26px;letter-spacing:.06em;text-transform:uppercase;margin:0;line-height:1}
+.brand small{display:block;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.tabs{display:flex;gap:2px;background:var(--well);border:1px solid var(--line);border-radius:6px;padding:3px}
+.tabs button{background:none;border:0;padding:6px 14px;border-radius:4px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;font-size:13px;color:var(--muted);cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--panel-2);color:var(--ink)}
+.transport{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.tbtn{display:grid;place-items:center;width:44px;height:40px;border-radius:5px;border:1px solid var(--line);background:var(--panel-2);cursor:pointer;padding:0}
+.tbtn svg{width:17px;height:17px;fill:var(--ink)}
+.tbtn[aria-pressed="true"]{background:var(--oxide);border-color:var(--oxide-hi)}
+.tbtn[aria-pressed="true"] svg{fill:var(--on-accent)}
+.tbtn.rec svg{fill:var(--rec)}
+.tbtn.rec[data-state="armed"]{border-color:var(--rec);animation:blink 1s steps(2) infinite}
+.tbtn.rec[data-state="on"]{background:var(--rec);border-color:var(--rec)}
+.tbtn.rec[data-state="on"] svg{fill:var(--on-accent)}
+@keyframes blink{50%{background:color-mix(in srgb,var(--rec) 30%,var(--panel-2))}}
+.counter{background:var(--well);border:1px solid var(--line);border-radius:4px;padding:3px 10px;color:var(--amber);font-family:var(--mono);text-align:center;min-width:12ch;line-height:1.15}
+.counter b{display:block;font-size:18px;font-weight:500;letter-spacing:.05em}
+.counter span{display:block;font-size:11px;color:var(--muted)}
+.counter.rec span{color:var(--rec)}
+.tempo{display:flex;align-items:center;gap:6px;background:var(--well);border:1px solid var(--line);border-radius:4px;padding:2px 4px 2px 8px}
+.tempo .lbl{font-size:10px}
+.btn{background:var(--panel-2);border:1px solid var(--line);border-radius:5px;padding:7px 12px;cursor:pointer;letter-spacing:.06em;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--oxide);border-color:var(--oxide-hi);color:var(--on-accent)}
+.btn.small{padding:4px 9px;font-size:13px}
+.btn.tiny{padding:2px 7px;font-size:12px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.btn[aria-pressed="true"]{background:var(--teal);border-color:var(--teal);color:var(--bg)}
+.lbl{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+select.sel,input.txt{background:var(--well);border:1px solid var(--line);border-radius:4px;padding:5px 7px}
+.led{width:9px;height:9px;border-radius:50%;background:var(--line);display:inline-block;flex:none}
+.led.on{background:var(--teal);box-shadow:0 0 6px var(--teal)}
+.led.wait{background:var(--amber);box-shadow:0 0 6px var(--amber)}
+.led.bad{background:var(--alert)}
+
+main{max-width:1600px;margin:0 auto;padding:16px 16px 48px}
+
+/* ---------- views: apps, both, console */
+body[data-view="console"] #room-apps{position:fixed;left:0;top:0;width:100vw;height:80vh;opacity:0;pointer-events:none;z-index:-1;padding:0}
+body[data-view="apps"] #room-console{display:none}
+body[data-view="both"] .frames{height:min(52vh,560px)}
+#room-apps{display:grid;gap:12px;margin-bottom:16px}
+
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 14px}
+.bar .grow{flex:1 1 auto}
+.bar input.txt{min-width:0;width:300px;max-width:100%}
+.apptabs{display:flex;flex-wrap:wrap;gap:6px}
+.apptab{display:flex;align-items:center;gap:7px;background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:6px 12px;cursor:pointer;font-weight:600;letter-spacing:.04em}
+.apptab[aria-selected="true"]{border-color:var(--oxide-hi);box-shadow:inset 0 -2px 0 var(--oxide-hi)}
+.apptab .chn{font-family:var(--mono);font-size:11px;color:var(--oxide-hi)}
+.frames{position:relative;height:calc(100vh - 230px);min-height:420px;background:var(--well);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.frames iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff;opacity:0;pointer-events:none}
+.frames iframe.show{opacity:1;pointer-events:auto;z-index:1}
+.frames .empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:var(--muted);padding:24px}
+.frames .empty strong{display:block;font-family:var(--display);font-size:24px;letter-spacing:.05em;color:var(--ink);margin-bottom:6px}
+.filepanel{position:absolute;inset:0;display:none;place-items:center;text-align:center;color:var(--muted);padding:24px;z-index:2;background:var(--panel)}
+.filepanel.show{display:grid}
+.filepanel h3{font-family:var(--display);font-size:26px;color:var(--ink);margin:0 0 6px;letter-spacing:.04em}
+
+/* ---------- console */
+.midibar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-bottom:12px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 14px}
+.midistatus{color:var(--muted);font-size:14px;flex:1 1 220px;min-width:0}
+.monitor{font-family:var(--mono);font-size:12px;color:var(--amber);background:var(--well);border:1px solid var(--line);border-radius:4px;padding:3px 8px;min-width:19ch}
+.learnbar{display:none;align-items:center;gap:10px;background:color-mix(in srgb,var(--amber) 16%,var(--panel));border:1px solid var(--amber);border-radius:6px;padding:8px 14px;margin-bottom:12px}
+body.learning .learnbar{display:flex}
+.console{overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch}
+.strips{display:flex;gap:8px;align-items:stretch;width:max-content}
+.strip{width:146px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:9px 8px;display:flex;flex-direction:column;gap:7px;position:relative}
+.strip.ret{background:color-mix(in srgb,var(--panel) 70%,var(--panel-2))}
+.strip.master{background:var(--panel-2);width:156px}
+.strip.empty{width:230px;justify-content:center;color:var(--muted);text-align:center}
+.strip-num{display:flex;justify-content:space-between;align-items:center;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--oxide-hi)}
+.strip-num .kind{color:var(--muted);letter-spacing:.08em}
+.strip-name{font-family:var(--display);font-weight:700;font-size:17px;letter-spacing:.03em;text-align:center;background:transparent;border:0;border-bottom:1px solid transparent;width:100%;padding:0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+input.strip-name:hover,input.strip-name:focus{border-bottom-color:var(--line);outline:none}
+.status{display:flex;align-items:center;justify-content:center;gap:6px;font-size:11.5px;color:var(--muted);min-height:16px;text-align:center;line-height:1.15}
+.ctx{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;align-items:stretch}
+.ctx button{border:1px solid var(--line);background:var(--well);border-radius:4px;padding:5px 0;cursor:pointer;display:grid;place-items:center}
+.ctx button svg{width:13px;height:13px;fill:var(--muted)}
+.ctx .cplay[aria-pressed="true"]{background:var(--teal);border-color:var(--teal)}
+.ctx .cplay[aria-pressed="true"] svg{fill:var(--bg)}
+.ctx .cplay[data-armed="true"]:not([aria-pressed="true"]){border-color:var(--teal);box-shadow:inset 0 0 0 1px var(--teal)}
+.ctx .cplay[data-armed="true"]:not([aria-pressed="true"]) svg{fill:var(--teal)}
+.ctx .cwait{animation:blink 0.5s steps(2) infinite}
+.cstate{font-size:11px;letter-spacing:.06em;color:var(--muted);text-align:center;min-height:14px;font-family:var(--mono)}
+.chsel{display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;color:var(--muted)}
+.chsel select{font-size:12px;padding:2px 4px}
+.sect{border-top:1px solid var(--line);padding-top:6px;display:grid;gap:4px}
+.sect > .lbl{font-size:10px;text-align:center}
+.kgrid{display:grid;grid-template-columns:1fr 1fr;gap:4px 2px;justify-items:center}
+.kgrid.one{grid-template-columns:1fr}
+.pot{display:grid;grid-template-columns:auto;justify-items:center;row-gap:1px}
+.pot .knob{width:36px;height:36px;cursor:ns-resize;touch-action:none;outline:none;border-radius:50%}
+.pot .knob:focus-visible{box-shadow:0 0 0 2px var(--teal)}
+.knob .trk{fill:none;stroke:var(--line);stroke-width:3.5;stroke-linecap:round}
+.knob .arc{fill:none;stroke:var(--oxide-hi);stroke-width:3.5;stroke-linecap:round}
+.knob .cap{fill:var(--panel);stroke:var(--line);stroke-width:1}
+.knob .ptr{stroke:var(--ink);stroke-width:2;stroke-linecap:round}
+.pot .nm{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.pot .nr{display:flex;align-items:baseline;gap:2px;min-width:0}
+.pot .num{font:500 11px/1.2 var(--mono);color:var(--ink);background:transparent;border:0;border-bottom:1px dashed transparent;padding:0;margin:0;min-width:0;max-width:100%;cursor:ns-resize;touch-action:none;outline:none;border-radius:0;text-align:center}
+.pot .num:hover{border-bottom-color:var(--muted)}
+.pot .num:focus{cursor:text;touch-action:auto;border-bottom:1px solid var(--oxide-hi);background:color-mix(in srgb,var(--oxide-hi) 12%,transparent)}
+.pot .un{font-size:9.5px;color:var(--muted);white-space:nowrap}
+.pot.bare .num{font-size:13px}
+.pot.big .num{font-size:17px;color:var(--amber)}
+.mb{font-family:var(--mono);font-size:9px;color:var(--teal);min-height:11px;white-space:nowrap}
+.faderzone{display:flex;justify-content:center;gap:8px;padding-top:6px;border-top:1px solid var(--line)}
+.fader{position:relative;width:30px;height:200px;cursor:ns-resize;touch-action:none}
+.fader .slot{position:absolute;left:50%;top:8px;bottom:8px;width:4px;margin-left:-2px;background:var(--well);border-radius:2px;box-shadow:inset 0 0 0 1px var(--line)}
+.fader .tick{position:absolute;left:0;right:0;height:1px;background:var(--line)}
+.fader .tick.zero{background:var(--muted)}
+.fader .cap{position:absolute;left:1px;right:1px;height:16px;margin-top:-8px;border-radius:3px;background:linear-gradient(var(--cap-a),var(--cap-b));border:1px solid var(--line);box-shadow:0 2px 4px var(--shadow)}
+.fader .cap::after{content:"";position:absolute;left:3px;right:3px;top:6px;height:2px;background:var(--cap-line)}
+.meterwrap{display:grid;grid-template-rows:auto 1fr;gap:3px;justify-items:center}
+.clip{width:22px;height:8px;border-radius:2px;background:var(--well);border:1px solid var(--line);cursor:pointer;padding:0}
+.clip.on{background:var(--alert);border-color:var(--alert);box-shadow:0 0 6px var(--alert)}
+.meter{display:flex;gap:2px;height:186px;position:relative}
+.meter .ch{width:8px;height:100%;background:var(--well);border:1px solid var(--line);border-radius:2px;position:relative;overflow:hidden}
+.meter .ch i{position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(to top,var(--teal) 0%,var(--teal) 70%,var(--warn) 85%,var(--alert) 97%);background-size:100% 184px;background-position:bottom}
+.meter .ch b{position:absolute;left:0;right:0;height:2px;background:var(--ink);bottom:-2px}
+.scale{position:relative;width:16px;height:186px;font:9px/1 var(--mono);color:var(--muted)}
+.scale span{position:absolute;right:0;transform:translateY(-50%)}
+.readouts{display:flex;justify-content:space-around;gap:4px;font:11px/1.2 var(--mono);color:var(--muted)}
+.readouts b{color:var(--ink);font-weight:500}
+.ms{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.ms button{border:1px solid var(--line);background:var(--well);border-radius:4px;padding:5px 0;cursor:pointer;font-weight:600;letter-spacing:.08em;color:var(--muted);width:100%}
+.ms .mute[aria-pressed="true"]{background:var(--alert);color:var(--bg);border-color:var(--alert)}
+.ms .solo[aria-pressed="true"]{background:var(--amber);color:var(--bg);border-color:var(--amber)}
+.ms .on[aria-pressed="true"]{background:var(--teal);color:var(--bg);border-color:var(--teal)}
+.ms .mbw{display:grid;justify-items:stretch;text-align:center}
+.foot{display:flex;gap:4px;justify-content:center}
+.gr{font:11px var(--mono);color:var(--muted);text-align:center}
+.gr b{color:var(--amber);font-weight:500}
+body.learning [data-ctl]{outline:1px dashed var(--amber);outline-offset:2px}
+.is-target{outline:2px solid var(--amber)!important;outline-offset:2px;animation:pulse 1s infinite}
+@keyframes pulse{50%{outline-color:transparent}}
+
+/* ---------- recorder */
+.panel{margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px 14px;display:grid;gap:10px}
+.panel h2{font-family:var(--display);font-weight:800;font-size:22px;letter-spacing:.05em;text-transform:uppercase;margin:0}
+.phead{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
+.phead .note{flex:1 1 280px}
+.note{color:var(--muted);font-size:14px;margin:0}
+.takes{display:grid;gap:6px}
+.take{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;background:var(--panel-2);border:1px solid var(--line);border-radius:5px;padding:7px 10px}
+.take .tn{font-family:var(--display);font-weight:700;font-size:17px;letter-spacing:.03em;background:transparent;border:0;border-bottom:1px solid transparent;min-width:0;flex:1 1 160px}
+.take .tn:focus{outline:none;border-bottom-color:var(--line)}
+.take .meta{font:12px var(--mono);color:var(--muted)}
+.take canvas{width:180px;height:30px;background:var(--well);border:1px solid var(--line);border-radius:3px}
+.export-row{border-top:1px dashed var(--line);padding-top:10px}
+details.map{margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 14px}
+details.map summary{cursor:pointer;font-family:var(--display);font-weight:700;font-size:18px;letter-spacing:.05em}
+.maptable-wrap{overflow-x:auto;margin-top:10px}
+table.maptable{border-collapse:collapse;width:100%;min-width:560px;font-size:14px}
+.maptable th{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);text-align:left;font-weight:500;padding:4px 6px;border-bottom:1px solid var(--line)}
+.maptable td{padding:3px 6px;border-bottom:1px solid color-mix(in srgb,var(--line) 50%,transparent)}
+.maptable tr.grp td{padding-top:12px;font-family:var(--display);font-weight:700;font-size:15px;color:var(--oxide-hi);letter-spacing:.04em}
+.maptable select,.maptable input{background:var(--well);border:1px solid var(--line);border-radius:4px;padding:2px 4px;font-size:13px}
+.maptable input{width:60px;font-family:var(--mono)}
+
+/* ---------- overlay */
+.overlay{position:fixed;inset:0;z-index:50;background:var(--scrim);display:grid;place-items:center;padding:16px}
+.sheet{width:min(580px,100%);max-height:calc(100% - 32px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:18px 20px;display:grid;gap:16px}
+.sheet h2{font-family:var(--display);font-weight:800;font-size:24px;letter-spacing:.05em;margin:0;text-transform:uppercase}
+.sheet h3{margin:0;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.sheet .grp{display:grid;gap:8px}
+.sheet .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:5px;z-index:60;font-weight:500;max-width:calc(100% - 32px)}
+
+@media (max-width:760px){
+  /* on a phone the console needs the height: the bar scrolls away (the master strip has Play and Rec too) */
+  .top{position:static}
+  .brand h1{font-size:21px}
+  .brand small{display:none}
+  .brand svg{width:28px;height:28px}
+  .top-in{gap:8px;padding:8px 10px}
+  .tabs button{padding:5px 9px;font-size:12px}
+  .tbtn{width:40px;height:36px}
+  .counter b{font-size:16px}
+  main{padding:12px 10px 40px}
+  .frames{height:calc(100vh - 260px)}
+  .strip{width:136px}
+}
+@media (prefers-reduced-motion:reduce){.is-target,.tbtn.rec[data-state="armed"],.ctx .cwait{animation:none}}
+</style>
+</head>
+<body data-view="console">
+<header class="top">
+  <div class="top-in">
+    <div class="brand">
+      <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect x="3" y="3" width="28" height="28" rx="4" fill="none" style="stroke:var(--oxide)" stroke-width="3"/><g style="stroke:var(--line)" stroke-width="2"><line x1="11" y1="8" x2="11" y2="26"/><line x1="17" y1="8" x2="17" y2="26"/><line x1="23" y1="8" x2="23" y2="26"/></g><g style="fill:var(--ink)"><rect x="8" y="17" width="6" height="4" rx="1"/><rect x="14" y="10" width="6" height="4" rx="1"/><rect x="20" y="20" width="6" height="4" rx="1"/></g></svg>
+      <div><h1>Mixing Desk</h1><small>Apps · console · mixdown</small></div>
+    </div>
+    <div class="tabs" role="tablist" aria-label="View">
+      <button role="tab" data-view="apps" aria-selected="false">Apps</button>
+      <button role="tab" data-view="both" aria-selected="false">Both</button>
+      <button role="tab" data-view="console" aria-selected="true">Console</button>
+    </div>
+    <div class="transport">
+      <button class="tbtn" id="stopBtn" aria-label="Stop" title="Stop (press twice to reset the counter)"><svg viewBox="0 0 20 20"><rect x="4" y="4" width="12" height="12" rx="1"/></svg></button>
+      <button class="tbtn" id="playBtn" aria-pressed="false" aria-label="Play" title="Play / stop (Space)" data-ctl="m:play"><svg viewBox="0 0 20 20"><path d="M5 3l12 7-12 7z"/></svg></button>
+      <button class="tbtn rec" id="recBtn" data-state="off" aria-label="Record the mix" title="Record the mix (R)" data-ctl="m:rec"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="6"/></svg></button>
+      <div class="counter" id="counter" aria-label="Position"><b id="ctrBars">001.1.1</b><span id="ctrTime">00:00.0</span></div>
+      <div class="tempo" id="tempoBox"><span class="lbl">BPM</span></div>
+      <button class="btn small" id="tapBtn" title="Tap tempo">Tap</button>
+      <button class="btn small" id="clickBtn" aria-pressed="false" title="Metronome click, to your speakers only (never recorded)" data-ctl="m:click">Click</button>
+    </div>
+    <button class="btn small" id="themeBtn" aria-label="Switch to light theme">☀ Light</button>
+    <button class="btn small" id="openSheet">Project</button>
+  </div>
+</header>
+
+<main>
+  <section id="room-apps" aria-label="Apps">
+    <div class="bar">
+      <label class="lbl" for="catSel">Add</label>
+      <select class="sel" id="catSel"></select>
+      <button class="btn primary" id="addApp">Add app</button>
+      <span class="grow"></span>
+      <input class="txt" id="urlIn" type="url" placeholder="Or paste any app address (https://…)" autocomplete="off">
+      <button class="btn" id="addUrl">Add URL</button>
+      <button class="btn" id="addFile">Audio file</button>
+      <button class="btn" id="addInput">Live input</button>
+      <input type="file" id="fileIn" accept="audio/*,.wav,.mp3,.ogg,.flac,.m4a,.aif,.aiff" multiple hidden>
+    </div>
+    <div class="apptabs" id="appTabs" role="tablist" aria-label="Channels"></div>
+    <div class="frames" id="frames">
+      <div class="empty" id="framesEmpty"><div><strong>No apps on the desk yet</strong>Pick an app above and press Add app. Each one gets its own channel strip, follows the desk's transport and sends its sound to the console.</div></div>
+      <div class="filepanel" id="filePanel"></div>
+    </div>
+  </section>
+
+  <section id="room-console" aria-label="Console">
+    <div class="midibar">
+      <span class="led" id="midiLed"></span>
+      <button class="btn small" id="midiConnect">Connect MIDI</button>
+      <span class="midistatus" id="midiStatus">Not connected. Mappings still save with the project.</span>
+      <span class="monitor" id="midiMon" title="Last MIDI message">— no input —</span>
+      <button class="btn small" id="learnBtn" aria-pressed="false">MIDI learn</button>
+      <button class="btn small" id="quickAdd">+ Add app</button>
+    </div>
+    <div class="learnbar" id="learnbar"><span id="learnText">Click a knob, fader or button, then move a control on your MIDI device.</span><button class="btn small" id="learnDone">Done</button></div>
+    <div class="console"><div class="strips" id="strips"></div></div>
+
+    <section class="panel" aria-labelledby="recTitle">
+      <div class="phead">
+        <h2 id="recTitle">Mixdown recorder</h2>
+        <p class="note" id="recNote">Records the master bus exactly as you hear it, after the fader and limiter. The click is never recorded.</p>
+      </div>
+      <div class="phead">
+        <label class="lbl" for="recMode">Start</label>
+        <select class="sel" id="recMode"><option value="bar">On the next bar line</option><option value="free">Straight away</option></select>
+        <label class="lbl" for="recLen">Length</label>
+        <select class="sel" id="recLen"><option value="0">Until I stop</option><option value="1">1 bar</option><option value="2">2 bars</option><option value="4">4 bars</option><option value="8">8 bars</option><option value="16">16 bars</option><option value="32">32 bars</option><option value="64">64 bars</option></select>
+        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="recStems"> Also record stems</label>
+        <label class="lbl" for="recBits">WAV</label>
+        <select class="sel" id="recBits"><option value="16">16-bit</option><option value="24" selected>24-bit</option><option value="32">32-bit float</option></select>
+        <button class="btn primary" id="recBtn2">● Record</button>
+      </div>
+      <div class="takes" id="takes"><p class="note" id="noTakes">No takes yet. Press Record (or R) to capture the mix.</p></div>
+      <div class="export-row" id="exportBar" title="Shared ecosystem export: the last N bars of the mix as WAV, and the console's fader moves as MIDI"></div>
+    </section>
+
+    <details class="map" id="mapDetails">
+      <summary>MIDI map</summary>
+      <p class="note">Each strip has its own MIDI channel with a default CC layout (Volume 7, Pan 10, Gain 20, High 21, Mid 22, Mid freq 23, Low 24, Drive 25, Echo 26, Echo time 27, Feedback 28, Reverb 29, Filter 30, Mute 31, Solo 32, Play 33, Restart 34, Low cut 35). The master, transport and reverb return are on channel 16. Change any row here or use MIDI learn.</p>
+      <div class="maptable-wrap"><table class="maptable"><thead><tr><th>Control</th><th>Channel</th><th>Type</th><th>Number</th><th></th></tr></thead><tbody id="mapBody"></tbody></table></div>
+    </details>
+  </section>
+</main>
+
+<div class="overlay" id="sheet" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="row" style="justify-content:space-between"><h2 id="sheetTitle">Project</h2><button class="btn small" id="closeSheet">Close</button></div>
+    <div class="grp">
+      <h3>Save and open</h3>
+      <div class="row"><label for="projName" class="lbl">Name</label><input class="txt" type="text" id="projName" value="mix-session"></div>
+      <div class="row"><button class="btn primary" id="saveProj">Save project (.json)</button><button class="btn" id="loadProjBtn">Open project</button><input type="file" id="projIn" accept=".json,application/json" hidden></div>
+      <p class="note">A project holds the apps on the desk and each app's own settings, every mixer setting, the tempo, the MIDI map and any audio files you added. The desk also remembers the current session in this browser (without audio files).</p>
+    </div>
+    <div class="grp">
+      <h3>Start over</h3>
+      <div class="row"><button class="btn" id="newProj">Clear the desk</button></div>
+    </div>
+    <div class="grp">
+      <h3>How apps connect</h3>
+      <p class="note">Each app runs in a frame on this page. The desk speaks the same guest protocol as Discobot's rack, so any app that can be a Discobot guest instrument plugs in: it follows the desk's tempo and start/stop and sends its sound into its channel strip instead of its own speakers. Apps that don't speak it still load, but their sound can't reach the console. For those, add a Live input channel and route the sound in from your audio interface.</p>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="jam-clips.js"></script>
+<script src="mixer-core.js"></script>
+<script src="desk.js"></script>
+</body>
+</html>
