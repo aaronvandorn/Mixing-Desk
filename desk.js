@@ -1135,7 +1135,8 @@ function snapshot(withAudio) {
       type: c.type, name: c.name, renamed: !!c.renamed, url: c.url, p: c.p, run: c.run, midiCh: c.midiCh,
       state: c.state, latency: c.latency, loop: c.loop, fileName: c.fileName,
       audio: withAudio && c.type === 'file' && c.bytes ? b64(c.bytes) : undefined
-    }))
+    })),
+    form: window.FormDesk ? window.FormDesk.save() : undefined
   };
 }
 let saveTimer = 0, restoring = false;
@@ -1181,6 +1182,7 @@ async function restore(data) {
     }
     applyMaster(); applyVerb(); applyAll();
     if (data.click) setCtl('m:click', true);
+    if (data.form && window.FormDesk) window.FormDesk.load(data.form);
     await Promise.all(pending);
   } finally { restoring = false; }
   refreshAll(); syncAllCtls(); refreshBadges(); saveSoon();
